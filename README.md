@@ -1,7 +1,7 @@
 # FFXVI Subtitle Organizer
 Script made for easier subtitle retranslation for FFXVI.
 
-> [!WARNING] To be considered
+> [!WARNING]
 > * This script was made with the DEMO version of FFXVI, can't confirm if it works properly on the base version. If you try it, use `0007.xx`.
 > * Tested by repacking manually, hasn't been tested with [Reloaded-II Mod Manager](https://github.com/Reloaded-Project/Reloaded-II).
 # Requirements
@@ -22,7 +22,8 @@ python FF16SubsOrganizer.py to-xlsx -l "<drive>:\path\to\folder\0001.en" -j "<dr
 * `-j`: japanese folder directory.
 * `-o` (optional): output directory, by default it's on same directory as the script.
 
-> [!INFO] When editing xlsx...
+> [!IMPORTANT]
+> When editing xlsx...
 > * be mindful of `<br>`, always add a newline after one, I haven't checked what happens if you don't add one.
 > * after pasting dialogue with newlines, select the table and separate cells, some rows may get hidden after pasting and this should fix it.
 
@@ -35,7 +36,8 @@ python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "<drive>:\path\to
 * `-col`: column (and row) where starts user retranslation, title column doesn't count. Recommended `I2`.
 * `-l`: language folder directory, from where user wants to translate.
 
-> [!NOTE] Directory Organization
+> [!NOTE]
+> #### Directory Organization
 > Depending on the way you organized your extracted XML files, you will need to use an specific path, the script looks for the **direct parent folder** of `bevent`, `bossbattle`, etc. If you extracted the XML on the same folder as the PZD ones, your path would be `C:\0001.en\nxd\text`; If you put the XML files on a separated folder, let's say: `C:\custom 0001 english XML\`, where inside are the folders `bevent`, `bossbattle`, etc. Then you should use `C:\custom 0001 english XML` as path.
 
 ---
