@@ -1,24 +1,17 @@
-import os
-import argparse
+import os, argparse, openpyxl.utils, json, subprocess
 import xml.etree.ElementTree as ET
 from html import escape, unescape
 from collections import defaultdict
 from openpyxl import Workbook, load_workbook
-import openpyxl.utils
 
-# ============================================================
-# Character and Subtitle Type Mappings
-# ============================================================
+def get_ids():
+    with open("IDs.json","r") as f:
+        jsonIds = json.load(f)
+    chara = jsonIds["characters"]
+    subtp = jsonIds["subtitleID"]
+    return chara, subtp
 
-characters = {"90010001": "Clive", "90020001": "Clive", "100100": "Clive", "100101": "Clive", "302200": "Aevis", "302300": "Tiamat", "302400": "Biast", "90040001": "Eugen Havel", "90040002": "Barnabas", "90040003": "Sleipnir", "90040004": "Benedikta", "200101": "Benedikta", "200102": "Benedikta", "90040005": "Kupka", "200200": "Kupka", "90080001": "Joshua", "90080002": "Rodney", "301400": "Rodney", "100200": "Joshua", "100206": "Joshua", "100300": "Jill", "300800": "Anabella", "300900": "Elwin", "301200": "Tyler", "301201": "Tyler", "301300": "Wade", "301303": "Wade", "100400": "Cid"}
-subtitleID = {"0": "Normal", "1": "Hidden", "2": "SFX"}
-
-# ============================================================
-# Core XML Functions
-# ============================================================
-
-# Read XML texts with proper encoding handling
-def read_texts_fixed(xml_path):
+def read_texts(xml_path):
     try:
         with open(xml_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -38,7 +31,6 @@ def read_texts_fixed(xml_path):
         print(f"Error reading {xml_path}: {e}")
         return []
 
-# Fix null/empty fields that cause C# converter errors
 def fix_xml_fields(root):
     text_contents = root.find("TextContents")
     if text_contents is None:
@@ -60,8 +52,7 @@ def fix_xml_fields(root):
         if string_elem.text is None:
             string_elem.text = ""
 
-# Write XML with proper encoding and field fixes
-def write_xml_fixed(tree, path):
+def write_xml(tree, path):
     root = tree.getroot()
     fix_xml_fields(root)
     xml_body = ET.tostring(root, encoding="unicode", method="xml")
@@ -69,26 +60,22 @@ def write_xml_fixed(tree, path):
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(xml_content)
 
-# ============================================================
-# Data Collection and Processing
-# ============================================================
-
-# Collect subtitle data from selected language and japanese folders
 def collect_table(lang_root, jap_root):
     table_rows = []
+    characters, subtitleID = get_ids()
     for root_dir, _, files in os.walk(lang_root):
         for file in files:
             if not file.endswith(".xml"):
                 continue
             lang_path = os.path.join(root_dir, file)
             rel_path = os.path.relpath(lang_path, lang_root)
-            subdir = os.path.dirname(rel_path)
+            subdir = os.path.basename(os.path.dirname(rel_path))
             jap_path = os.path.join(jap_root, rel_path)
             if not os.path.exists(jap_path):
-                print(f"[WARNING] Japanese path not found: {jap_path}")
+                print(f" [WARNING] Japanese path not found: {jap_path}")
                 continue
-            lang_data = read_texts_fixed(lang_path)
-            jap_data = read_texts_fixed(jap_path)
+            lang_data = read_texts(lang_path)
+            jap_data = read_texts(jap_path)
             filename = os.path.splitext(file)[0]
             if filename.endswith(".pzd"):
                 filename = filename[:-4]
@@ -102,11 +89,7 @@ def collect_table(lang_root, jap_root):
 def safe_html(text):
     return escape(text, quote=False).replace("&", "&amp;")
 
-# ============================================================
 # Command: to-html
-# ============================================================
-
-# Export subtitle data to HTML table
 def export_html(table_rows, output):
     html_content = [
         "<html><head><meta charset='UTF-8'><style>",
@@ -141,11 +124,7 @@ def export_html(table_rows, output):
         f.write("\n".join(html_content))
     print(f"> HTML exported to: {output}")
 
-# ============================================================
 # Command: to-xlsx
-# ============================================================
-
-# Export subtitle data to XLSX file
 def export_xlsx(table_rows, output):
     wb = Workbook()
     ws = wb.active
@@ -157,11 +136,7 @@ def export_xlsx(table_rows, output):
     print(f"> XLSX file exported to: {output}")
     print(f" (INSTRUCTION) Edit the 'Retranslation' column (I) and then use 'edit-xml' to apply changes")
 
-# ============================================================
 # Command: edit-xml
-# ============================================================
-
-# Apply translations from XLSX back to XML files with proper encoding
 def edit_xml(xlsx_path, col_reference, lang_root):
     try:
         wb = load_workbook(xlsx_path)
@@ -182,7 +157,7 @@ def edit_xml(xlsx_path, col_reference, lang_root):
             xml_filename = f"{filename}.pzd.xml"
             xml_path = os.path.join(lang_root, subdir, xml_filename) if subdir else os.path.join(lang_root, xml_filename)
             if not os.path.exists(xml_path):
-                print(f"[ERROR] File not found: {xml_path}")
+                print(f" [ERROR] File not found: {xml_path}")
                 continue
             try:
                 with open(xml_path, "r", encoding="utf-8") as f:
@@ -204,35 +179,89 @@ def edit_xml(xlsx_path, col_reference, lang_root):
                                 files_processed.add(xml_path)
                                 break
                 tree = ET.ElementTree(root)
-                write_xml_fixed(tree, xml_path)
+                write_xml(tree, xml_path)
             except Exception as e:
-                print(f"[ERROR] Error processing {xml_path}: {e}")
+                print(f" [ERROR] Error processing {xml_path}: {e}")
                 continue
         print(f"\n Summary:")
         print(f"   • {changes_made} translations applied")
         print(f"   • {len(files_processed)} files modified")
     except Exception as e:
-        print(f"[ERROR] Error reading XLSX file: {e}")
+        print(f" [ERROR] Error reading XLSX file: {e}")
 
-# ============================================================
-# Main Function
-# ============================================================
+# Command: convert-batch
+def convert_batch(ff16converter,lang_path):
+    from pathlib import Path
+    lang_path = Path(lang_path)
+    if not lang_path.exists():
+        print(f" [ERROR]: Folder {lang_path} does not exist")
+        return
+    if not Path(ff16converter).exists():
+        print(f" [ERROR]: Converter {ff16converter} does not exist")
+        return
+    valid_ext = [".xml"]
+    files_to_convert = [
+        file for file in lang_path.rglob("*")
+        if file.suffix.lower() in valid_ext and file.is_file()
+    ]
+    for file in files_to_convert:
+        print(f"> Converting: {file}")
+        try:
+            result = subprocess.run([ff16converter, str(file)], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f" [WARNING]: Conversion failed for {file}")
+                print(f" [ERROR]: {result.stderr}")
+        except FileNotFoundError:
+            print(f" [ERROR]: Converter not found at {ff16converter}")
+            break
+        except Exception as e:
+            print(f" [ERROR]: Error converting {file}: {e}")
+
+def move_converted(this_directory, to_directory):
+    from pathlib import Path
+    import shutil
+    Path.mkdir(Path(to_directory), parents=True, exist_ok=True)
+    converted_files = list(Path(this_directory).rglob("*RB.pzd"))
+    if not converted_files:
+        return
+    for file in converted_files:
+        try:
+            relative_path = file.relative_to(this_directory)
+            original_name = file.name.replace(".pzd.xmlRB.pzd",".pzd")
+            destination_file = to_directory / relative_path.parent / original_name
+            Path.mkdir(destination_file.parent, parents=True, exist_ok=True)
+            if destination_file.exists():
+                print(f" [WARNING]: {relative_path} already exists, skipping")
+                continue
+            shutil.move(str(file), str(destination_file))
+            print(f"> Moved: {relative_path}")
+        except Exception as e:
+            print(f" [ERROR]: Error moving {file.name}: {e}")
+    print(f"> Move operation completed.")
 
 def main():
     parser = argparse.ArgumentParser(
-        description="FFXVI Subtitle Organizer v1.0",
+        description="""
+ +----------------------------------------------+
+ | FFXVI Subtitle Organizer v1.1                |
+ | by Roysu                                     |
+ +----------------------------------------------+
+ | https://github.com/roymuke/FF16SubsOrganizer |
+ +----------------------------------------------+""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+examples:
   # Export to HTML for preview
   > python FF16SubsOrganizer.py to-html -l "C:\path\\to\\folder\\0001.en" -j "C:\path\\to\\folder\\0001.ja" [-o "C:\custom\path\\to\\file.html"]
-  
+
   # Export to XLSX for editing
   > python FF16SubsOrganizer.py to-xlsx -l "C:\path\\to\\folder\\0001.en.XML" -j "C:\path\\to\\folder\\0001.ja\\nxd\\txt" [-o "C:\custom\path\\to\\file.xlsx"]
-  
+
   # Apply translations from XLSX back to XML
   > python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "C:\path\\to\\folder\\0001.en"
-        """)
+
+  # Convert in batch XML back to PZD
+  > python FF16SubsOrganizer.py convert-batch -c "C:\path\\to\\FF16Converter.exe" -f "C:\path\\to\\folder\\0001.en\\nxd\\text" [-m "C:\path\\to\moving\\folder"]""")
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
     # to-html command
     html_parser = subparsers.add_parser("to-html", help="Export subtitles to HTML table.")
@@ -249,6 +278,11 @@ Examples:
     edit_parser.add_argument("-f", "--file", required=True, help="XLSX file path")
     edit_parser.add_argument("-col", required=True, help="Column with new translations (e.g., I2)")
     edit_parser.add_argument("-l", "--language", required=True, help="Path to language to translate folder (e.g. C:\...\0001.en\nxd\text)")
+    # convert-batch command
+    move_parser = subparsers.add_parser("convert-batch", help="Convert entire XML files back to PZD.")
+    move_parser.add_argument("-c", "--converter", required=True, help="Path to FF16Converter.exe")
+    move_parser.add_argument("-f", "--folder", required=True, help="Path to language folder")
+    move_parser.add_argument("-m", "--moveto", help="Path to converted pzd files folder destination.")
 
     args = parser.parse_args()
 
@@ -263,6 +297,12 @@ Examples:
     elif args.command == "edit-xml":
         print(f"> Applying translations from: {args.file}")
         edit_xml(args.file, args.col, args.language)
+    elif args.command == "convert-batch":
+        print(f"> Converting files in: {args.folder}")
+        convert_batch(args.converter,args.folder)
+        if args.moveto:
+            print(f"> Moving files to: {args.moveto}")
+            move_converted(args.folder, args.moveto)
 
 if __name__ == "__main__":
     main()
