@@ -28,7 +28,7 @@ def read_texts(xml_path):
             result.append((content_id, chara_id, subtype, message))
         return result
     except Exception as e:
-        print(f"Error reading {xml_path}: {e}")
+        print(f" \033[91m[ERROR]\033[00m Error reading {xml_path}: {e}")
         return []
 
 def fix_xml_fields(root):
@@ -72,7 +72,7 @@ def collect_table(lang_root, jap_root):
             subdir = os.path.basename(os.path.dirname(rel_path))
             jap_path = os.path.join(jap_root, rel_path)
             if not os.path.exists(jap_path):
-                print(f" [WARNING] Japanese path not found: {jap_path}")
+                print(f" \033[38;5;214m[WARNING]\033[00m Japanese path not found: {jap_path}")
                 continue
             lang_data = read_texts(lang_path)
             jap_data = read_texts(jap_path)
@@ -122,7 +122,7 @@ def export_html(table_rows, output):
     html_content.extend(["</table>", "</body></html>"])
     with open(output, "w", encoding="utf-8") as f:
         f.write("\n".join(html_content))
-    print(f"> HTML exported to: {output}")
+    print(f" \033[38;5;76m[DONE]\033[00m HTML generated in: \033[48;5;235m{output}\033[00m")
 
 # Command: to-xlsx
 def export_xlsx(table_rows, output):
@@ -133,8 +133,8 @@ def export_xlsx(table_rows, output):
     for subdir, filename, msg_id, subtype, chara_name, chara_id, en_text, jp_text in table_rows:
         ws.append([subdir, filename, msg_id, subtype, chara_name, chara_id,en_text, jp_text, ""])
     wb.save(output)
-    print(f"> XLSX file exported to: {output}")
-    print(f" (INSTRUCTION) Edit the 'Retranslation' column (I) and then use 'edit-xml' to apply changes")
+    print(f" \033[38;5;76m[DONE]\033[00m XLSX file generated in: \033[48;5;235m{output}\033[00m")
+    print(f" \033[38;5;81m[INSTRUCTION] Edit the 'Retranslation' column (I) and then use 'edit-xml' to apply changes.\033[00m")
 
 # Command: edit-xml
 def edit_xml(xlsx_path, col_reference, lang_root):
@@ -157,7 +157,7 @@ def edit_xml(xlsx_path, col_reference, lang_root):
             xml_filename = f"{filename}.pzd.xml"
             xml_path = os.path.join(lang_root, subdir, xml_filename) if subdir else os.path.join(lang_root, xml_filename)
             if not os.path.exists(xml_path):
-                print(f" [ERROR] File not found: {xml_path}")
+                print(f" \033[91m[ERROR]\033[00m File not found: {xml_path}")
                 continue
             try:
                 with open(xml_path, "r", encoding="utf-8") as f:
@@ -174,94 +174,139 @@ def edit_xml(xlsx_path, col_reference, lang_root):
                             if message_elem is not None:
                                 old_text = message_elem.text or ""
                                 message_elem.text = unescape(new_translation.strip())
-                                print(f" > {filename} (ID: {msg_id}): '{old_text}' -> '{new_translation.strip()}'")
-                                changes_made += 1
-                                files_processed.add(xml_path)
+                                if old_text == new_translation:
+                                    print(f" \033[90m[SKIP] Message {msg_id} already translated, skipping.\033[00m") 
+                                    continue
+                                else:
+                                    print(f" \033[38;5;75m[INFO]\033[00m {filename} (ID: {msg_id}): \033[38;5;210m\"{old_text}\"\033[00m -> \033[38;5;81m\"{new_translation.strip()}\"\033[00m")
+                                    changes_made += 1
+                                    files_processed.add(xml_path)
                                 break
                 tree = ET.ElementTree(root)
                 write_xml(tree, xml_path)
             except Exception as e:
-                print(f" [ERROR] Error processing {xml_path}: {e}")
+                print(f" \033[91m[ERROR]\033[00m Error processing {xml_path}: {e}")
                 continue
-        print(f"\n Summary:")
-        print(f"   • {changes_made} translations applied")
-        print(f"   • {len(files_processed)} files modified")
+        print(f"\n \033[38;5;76m[DONE]\033[00m Summary:")
+        print(f"   • {changes_made} translations applied.")
+        print(f"   • {len(files_processed)} files modified.")
     except Exception as e:
-        print(f" [ERROR] Error reading XLSX file: {e}")
+        print(f" \033[91m[ERROR]\033[00m Error reading XLSX file: {e}")
 
 # Command: convert-batch
-def convert_batch(ff16converter,lang_path):
+def convert_batch(ff16converter, lang_path, valid_ext):
     from pathlib import Path
+    from time import perf_counter
     lang_path = Path(lang_path)
     if not lang_path.exists():
-        print(f" [ERROR]: Folder {lang_path} does not exist")
+        print(f" \033[91m[ERROR]\033[00m Folder {lang_path} does not exist")
         return
     if not Path(ff16converter).exists():
-        print(f" [ERROR]: Converter {ff16converter} does not exist")
+        print(f" \033[91m[ERROR]\033[00m Converter {ff16converter} does not exist")
         return
-    valid_ext = [".xml"]
+    if not valid_ext:
+        print(f" \033[91m[ERROR]\033[00m Extension not set.")
+        return
+    if valid_ext == ".pzd": ext_convert = ".xml"
+    else: ext_convert = ".pzd"
+    valid_ext = [valid_ext]
+    print(f"> Converting files in: \033[48;5;235m{lang_path}\033[00m")
     files_to_convert = [
         file for file in lang_path.rglob("*")
         if file.suffix.lower() in valid_ext and file.is_file()
     ]
+    print(f" \033[38;5;75m[INFO]\033[00m {len(files_to_convert)} files to convert")
+    start_time = perf_counter()
     for file in files_to_convert:
-        print(f"> Converting: {file}")
         try:
+            if valid_ext == [".pzd"]:
+                has_xml = Path(str(file) + ".xml")
+                if has_xml.exists():
+                    print(f" \033[90m[SKIP] {has_xml.name} already exists, skipping.\033[00m")
+                    continue
+            else:
+                has_pzd = Path(str(file) + "RB.pzd")
+                if has_pzd.exists():
+                    print(f" \033[90m[SKIP] {has_pzd.name} already exists, skipping.\033[00m")
+                    continue
+            print(f" \033[38;5;75m[INFO]\033[00m Converting: \033[38;5;81m{file.name}\033[00m to \033[38;5;211m{ext_convert}\033[00m")
             result = subprocess.run([ff16converter, str(file)], capture_output=True, text=True)
             if result.returncode != 0:
-                print(f" [WARNING]: Conversion failed for {file}")
-                print(f" [ERROR]: {result.stderr}")
+                print(f" \033[38;5;214m[WARNING]\033[00m Conversion failed for {file.name}")
+                print(f" \033[91m[ERROR]\033[00m {result.stderr}")
         except FileNotFoundError:
-            print(f" [ERROR]: Converter not found at {ff16converter}")
+            print(f" \033[91m[ERROR]\033[00m Converter not found at {ff16converter}")
             break
         except Exception as e:
-            print(f" [ERROR]: Error converting {file}: {e}")
+            print(f" \033[91m[ERROR]\033[00m Error converting {file}: {e}")
+    time_lapsed = perf_counter() - start_time
+    print(f" \033[38;5;76m[DONE]\033[00m Files converted in {int(time_lapsed // 3600):02d}:{int((time_lapsed % 3600) // 60):02d}:{int(time_lapsed % 60):02d}")
 
-def move_converted(this_directory, to_directory):
+def move_converted(this_directory, to_directory, extension):
     from pathlib import Path
     import shutil
     Path.mkdir(Path(to_directory), parents=True, exist_ok=True)
-    converted_files = list(Path(this_directory).rglob("*RB.pzd"))
-    if not converted_files:
-        return
-    for file in converted_files:
-        try:
-            relative_path = file.relative_to(this_directory)
-            original_name = file.name.replace(".pzd.xmlRB.pzd",".pzd")
-            destination_file = to_directory / relative_path.parent / original_name
-            Path.mkdir(destination_file.parent, parents=True, exist_ok=True)
-            if destination_file.exists():
-                print(f" [WARNING]: {relative_path} already exists, skipping")
-                continue
-            shutil.move(str(file), str(destination_file))
-            print(f"> Moved: {relative_path}")
-        except Exception as e:
-            print(f" [ERROR]: Error moving {file.name}: {e}")
-    print(f"> Move operation completed.")
+    match extension:
+        case ".xml":
+            converted_files = list(Path(this_directory).rglob("*RB.pzd"))
+            if not converted_files:
+                return
+            for file in converted_files:
+                try:
+                    relative_path = file.relative_to(this_directory)
+                    original_name = file.name.replace(".pzd.xmlRB.pzd",".pzd")
+                    destination_file = to_directory / relative_path.parent / original_name
+                    Path.mkdir(destination_file.parent, parents=True, exist_ok=True)
+                    if destination_file.exists():
+                        print(f" \033[90m[SKIP] {original_name} already exists, skipping.\033[00m")
+                        continue
+                    shutil.move(str(file), str(destination_file))
+                    print(f" \033[38;5;75m[INFO]\033[00m Moved: \033[38;5;81m{file.name}\033[00m to \033[48;5;235m{destination_file.parent}\033[00m")
+                except Exception as e:
+                    print(f" \033[91m[ERROR]\033[00m Error moving {file.name}: {e}")
+        case ".pzd":
+            converted_files = list(Path(this_directory).rglob("*.pzd.xml"))
+            if not converted_files:
+                return
+            for file in converted_files:
+                try:
+                    relative_path = file.relative_to(this_directory)
+                    destination_folder = to_directory / relative_path.parent
+                    destination_file = destination_folder.parent / relative_path
+                    Path.mkdir(destination_folder, parents=True, exist_ok=True)
+                    if destination_file.exists():
+                        print(f" \033[90m[SKIP] {relative_path} already exists, skipping.\033[00m")
+                        continue
+                    shutil.move(str(file), str(destination_folder))
+                    print(f" \033[38;5;75m[INFO]\033[00m Moved: \033[38;5;81m{file.name}\033[00m to \033[48;5;235m{destination_folder}\033[00m")
+                except Exception as e:
+                    print(f" \033[91m[ERROR]\033[00m Error moving {file.name}: {e}")
+    print(f" \033[38;5;76m[DONE]\033[00m Move operation completed.")
 
 def main():
+    os.system("color")
     parser = argparse.ArgumentParser(
-        description="""
+        description="""\033[38;5;81m
  +----------------------------------------------+
- | FFXVI Subtitle Organizer v1.1                |
+ | FFXVI Subtitle Organizer v1.2                |
  | by Roysu                                     |
  +----------------------------------------------+
  | https://github.com/roymuke/FF16SubsOrganizer |
- +----------------------------------------------+""",
+ +----------------------------------------------+\033[00m""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  # Export to HTML for preview
-  > python FF16SubsOrganizer.py to-html -l "C:\path\\to\\folder\\0001.en" -j "C:\path\\to\\folder\\0001.ja" [-o "C:\custom\path\\to\\file.html"]
+  \033[90m# Export to HTML for preview\033[00m
+  > python \033[38;5;149mFF16SubsOrganizer.py\033[00m to-html \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en"\033[00m \033[38;5;149m-j\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.ja"\033[00m [\033[38;5;149m-o\033[00m \033[38;5;222m"C:\custom\path\\to\\file.html"\033[00m]
 
-  # Export to XLSX for editing
-  > python FF16SubsOrganizer.py to-xlsx -l "C:\path\\to\\folder\\0001.en.XML" -j "C:\path\\to\\folder\\0001.ja\\nxd\\txt" [-o "C:\custom\path\\to\\file.xlsx"]
+  \033[90m# Export to XLSX for editing\033[00m
+  > python \033[38;5;149mFF16SubsOrganizer.py\033[00m to-xlsx \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en.XML"\033[00m \033[38;5;149m-j\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.ja\\nxd\\txt"\033[00m [\033[38;5;149m-o\033[00m \033[38;5;222m"C:\custom\path\\to\\file.xlsx"\033[00m]
 
-  # Apply translations from XLSX back to XML
-  > python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "C:\path\\to\\folder\\0001.en"
+  \033[90m# Apply translations from XLSX back to XML\033[00m
+  > python \033[38;5;149mFF16SubsOrganizer.py\033[00m edit-xml \033[38;5;149m-f\033[00m \033[38;5;222m"file.xlsx"\033[00m \033[38;5;149m-col\033[00m I2 \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en"\033[00m
 
-  # Convert in batch XML back to PZD
-  > python FF16SubsOrganizer.py convert-batch -c "C:\path\\to\\FF16Converter.exe" -f "C:\path\\to\\folder\\0001.en\\nxd\\text" [-m "C:\path\\to\moving\\folder"]""")
+  \033[90m# Convert in batch XML back to PZD\033[00m
+  > python \033[38;5;149mFF16SubsOrganizer.py\033[00m convert-batch \033[38;5;149m-c\033[00m \033[38;5;222m"C:\path\\to\\FF16Converter.exe"\033[00m \033[38;5;149m-f\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en\\nxd\\text"\033[00m \033[38;5;149m--xml\033[00m [\033[38;5;149m-m\033[00m \033[38;5;222m"C:\path\\to\moving\\folder"\033[00m]""")
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
     # to-html command
     html_parser = subparsers.add_parser("to-html", help="Export subtitles to HTML table.")
@@ -282,27 +327,28 @@ examples:
     move_parser = subparsers.add_parser("convert-batch", help="Convert entire XML files back to PZD.")
     move_parser.add_argument("-c", "--converter", required=True, help="Path to FF16Converter.exe")
     move_parser.add_argument("-f", "--folder", required=True, help="Path to language folder")
+    move_parser.add_argument("--xml", action="store_const", const=".xml", dest="extension", help="Extension to convert, i.e, XML to PZD.")
+    move_parser.add_argument("--pzd", action="store_const", const=".pzd", dest="extension", help="Extension to convert, i.e, PZD to XML.")
     move_parser.add_argument("-m", "--moveto", help="Path to converted pzd files folder destination.")
 
     args = parser.parse_args()
 
     if args.command == "to-html":
-        print(f"> Exporting to HTML: {args.output}")
+        print(f"> Exporting to HTML: \033[48;5;235m{args.output}\033[00m")
         table_rows = collect_table(args.language, args.japanese)
         export_html(table_rows, args.output)
     elif args.command == "to-xlsx":
-        print(f"> Exporting to XLSX: {args.output}")
+        print(f"> Exporting to XLSX: \033[48;5;235m{args.output}\033[00m")
         table_rows = collect_table(args.language, args.japanese)
         export_xlsx(table_rows, args.output)
     elif args.command == "edit-xml":
-        print(f"> Applying translations from: {args.file}")
+        print(f"> Applying translations from: \033[48;5;235m{args.file}\033[00m")
         edit_xml(args.file, args.col, args.language)
     elif args.command == "convert-batch":
-        print(f"> Converting files in: {args.folder}")
-        convert_batch(args.converter,args.folder)
-        if args.moveto:
-            print(f"> Moving files to: {args.moveto}")
-            move_converted(args.folder, args.moveto)
+        convert_batch(args.converter,args.folder,args.extension)
+        if args.moveto and args.extension:
+            print(f"> Moving files to: \033[48;5;235m{args.moveto}\033[00m")
+            move_converted(args.folder, args.moveto, args.extension)
 
 if __name__ == "__main__":
     main()

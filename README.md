@@ -40,13 +40,15 @@ python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "<drive>:\path\to
 > #### Directory Organization
 > Depending on the way you organized your extracted XML files, you will need to use an specific path, the script looks for the **direct parent folder** of `bevent`, `bossbattle`, etc. If you extracted the XML on the same folder as the PZD ones, your path would be `C:\0001.en\nxd\text`; If you put the XML files on a separated folder, let's say: `C:\custom 0001 english XML\`, where inside are the folders `bevent`, `bossbattle`, etc. Then you should use `C:\custom 0001 english XML` as path.
 ---
-To convert `xml` back to `pzd` in batch, optional command to move those files into another directory:
+To convert `xml` to `pzd`, or `pzd` to `xml`, in batch, optional command to move those files into another directory:
 ```shell
-python FF16SubsOrganizer.py convert-batch -c "<drive>:\path\to\FF16Converter.exe" -f "<drive>:\path\to\folder\0001.en\nxd\text" [-m "<drive>:\path\to\moving\folder"]
+python FF16SubsOrganizer.py convert-batch -c "<drive>:\path\to\FF16Converter.exe" -f "<drive>:\path\to\folder\0001.en\nxd\text" --pzd [-m "<drive>:\path\to\moving\folder"]
 ```
 * `-c`: FF16Converter.exe directory path.
 * `-f`: Path to language folder.
-* `-m` (optional): Folder path to move newly generated `.pzd` files.
+* `--pzd`: Extension to convert, i.e, PZD to XML.
+* `--xml`: Extension to convert, i.e, XML to PZD.
+* `-m` (optional): Folder path to move newly generated `.pzd` or `.xml` files.
 ---
 To extract `xml` dialogue and save it on a `html` file (this is just a leftover funcionality):
 ```shell
