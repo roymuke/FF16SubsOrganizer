@@ -1,9 +1,8 @@
 # FFXVI Subtitle Organizer
-Script made for easier subtitle retranslation for FFXVI.
+Script made for easier subtitle retranslation for FFXVI. Supports both base and demo versions.
 
 > [!WARNING]
-> * This script was made with the DEMO version of FFXVI, can't confirm if it works properly on the base version. If you try it, use `0007.xx`.
-> * Tested by repacking manually, hasn't been tested with [Reloaded-II Mod Manager](https://github.com/Reloaded-Project/Reloaded-II).
+> Tested by repacking manually, hasn't been tested correctly with [Reloaded-II Mod Manager](https://github.com/Reloaded-Project/Reloaded-II).
 # Requirements
 * [FF16Tools](https://github.com/Nenkai/FF16Tools)
 * [FF16Converter 1.4](https://github.com/KillzXGaming/FF16Converter)
@@ -12,15 +11,29 @@ Script made for easier subtitle retranslation for FFXVI.
 	* openpyxl
 * Microsoft Excel (version used: Excel 2010)
 # Usage
-After you extract the contents of `0001.xx.pac` and `0001.ja.pac` with `FF16Tools`, convert the `.pzd` files to `.xml` with `FF16Converter` (found, by deafult, in path `0001.xx.pac\nxd\text`).
+After you extract the contents of `0007.xx.pac` (`xx` being your selected language) and `0007.ja.pac` with `FF16Tools`, convert the `.pzd` files to `.xml` with `FF16SubsOrganizer` (that uses `FF16Converter` to do so). Check the [Wiki](https://github.com/roymuke/FF16SubsOrganizer/wiki) for a more detailed step-by-step.
+
+If you are working with the demo version, use `0001.xx.pac` and `0001.ja.pac`.
 ## Commands
+To convert `pzd` to `xml`, or `xml` to `pzd` in batch, optional command to move those files into another directory:
+```shell
+python FF16SubsOrganizer.py convert-batch -c "<drive>:\path\to\FF16Converter.exe" -f "<drive>:\path\to\folder\0007.en\nxd\text" --pzd [-m "<drive>:\path\to\moving\folder"]
+```
+* `-c`: "FF16Converter.exe" directory path.
+* `-f`: Path to language folder.
+* `--pzd`: Extension to convert, i.e, PZD to XML. (has to be just one of these)
+* `--xml`: Extension to convert, i.e, XML to PZD. (has to be just one of these)
+* `-m` (optional): Folder path to move newly generated `.pzd` or `.xml` files.
+* `--verbose` (optional): show detailed output messages.
+---
 To extract `xml` dialogue and export to `xlsx` (excel):
 ```shell
-python FF16SubsOrganizer.py to-xlsx -l "<drive>:\path\to\folder\0001.en" -j "<drive>:\path\to\folder\0001.ja" [-o "<drive>:\custom\path\to\file.xlsx"]
+python FF16SubsOrganizer.py to-xlsx -l "<drive>:\path\to\folder\0007.en" -j "<drive>:\path\to\folder\0007.ja" [-o "<drive>:\custom\path\to\file.xlsx"]
 ```
 * `-l`: language folder directory for translation.
 * `-j`: japanese folder directory.
 * `-o` (optional): output directory, by default it's on same directory as the script.
+* `--verbose` (optional): show detailed output messages.
 
 > [!IMPORTANT]
 > When editing xlsx...
@@ -30,30 +43,13 @@ python FF16SubsOrganizer.py to-xlsx -l "<drive>:\path\to\folder\0001.en" -j "<dr
 ---
 To convert `xlsx` back to `xml`:
 ```shell
-python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "<drive>:\path\to\folder\0001.en"
+python FF16SubsOrganizer.py edit-xml -f "file.xlsx" -col I2 -l "<drive>:\path\to\folder\0007.en"
 ```
 * `-f`: XLSX file directory.
 * `-col`: column (and row) where starts user retranslation, title column doesn't count. Recommended `I2`.
 * `-l`: language folder directory, from where user wants to translate.
+* `--verbose` (optional): show detailed output messages.
 
 > [!NOTE]
 > #### Directory Organization
-> Depending on the way you organized your extracted XML files, you will need to use an specific path, the script looks for the **direct parent folder** of `bevent`, `bossbattle`, etc. If you extracted the XML on the same folder as the PZD ones, your path would be `C:\0001.en\nxd\text`; If you put the XML files on a separated folder, let's say: `C:\custom 0001 english XML\`, where inside are the folders `bevent`, `bossbattle`, etc. Then you should use `C:\custom 0001 english XML` as path.
----
-To convert `xml` to `pzd`, or `pzd` to `xml`, in batch, optional command to move those files into another directory:
-```shell
-python FF16SubsOrganizer.py convert-batch -c "<drive>:\path\to\FF16Converter.exe" -f "<drive>:\path\to\folder\0001.en\nxd\text" --pzd [-m "<drive>:\path\to\moving\folder"]
-```
-* `-c`: FF16Converter.exe directory path.
-* `-f`: Path to language folder.
-* `--pzd`: Extension to convert, i.e, PZD to XML.
-* `--xml`: Extension to convert, i.e, XML to PZD.
-* `-m` (optional): Folder path to move newly generated `.pzd` or `.xml` files.
----
-To extract `xml` dialogue and save it on a `html` file (this is just a leftover funcionality):
-```shell
-python FF16SubsOrganizer.py to-html -l "<drive>:\path\to\folder\0001.en" -j "<drive>:\path\to\folder\0001.ja" [-o "<drive>:\custom\path\to\file.html"]
-```
-* `-l`: language folder directory of interest.
-* `-j`: japanese folder directory.
-* `-o` (optional): output directory, by default it's on same directory as the script.
+> Depending on the way you organized your extracted XML files, you will need to use an specific path, the script looks for the **direct parent folder** of `bevent`, `bossbattle`, etc. If you extracted the XML on the same folder as the PZD ones, your path would be `C:\0007.en\nxd\text`; If you put the XML files on a separated folder, let's say: `C:\custom 0007 english XML\`, where inside are the folders `bevent`, `bossbattle`, etc. Then you should use `C:\custom 0007 english XML` as path.
