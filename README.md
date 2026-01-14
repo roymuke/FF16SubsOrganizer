@@ -2,7 +2,7 @@
 Script made for easier subtitle retranslation for FFXVI. Supports both base and demo game versions.
 
 > [!WARNING]
-> Tested by repacking manually, hasn't been tested correctly with [Reloaded-II Mod Manager](https://github.com/Reloaded-Project/Reloaded-II).
+> Tested by repacking manually, modded subtitles have not been tested with [Reloaded-II Mod Manager](https://github.com/Reloaded-Project/Reloaded-II).
 # Requirements
 * [FF16Tools](https://github.com/Nenkai/FF16Tools)
 * [FF16Converter 1.4](https://github.com/KillzXGaming/FF16Converter)
@@ -60,10 +60,10 @@ Move files by extension to another directory:
 ```shell
 FF16SubsOrganizer.py move-batch -f "<drive>:\path\to\folder\0007.en.XML" --pzd -m "<drive>:\path\to\moving\folder"
 ```
-* `-f`: Path to language folder.
-* `--pzd`: PZD extension file to move. (has to be just one of these)
-* `--xml`: XML extension file to move. (has to be just one of these)
-* `-m`: Folder path to move newly generated `.pzd` or `.xml` files.
+* `-f`: Path to folder.
+* `--pzd`: PZD extension files to move. (has to be just one of these)
+* `--xml`: XML extension files to move. (has to be just one of these)
+* `-m`: Destination folder path to move files.
 * `--verbose` (optional): show detailed output messages.
 # Feedback
 Did you use my script? Feel free to open an [issue ticket](https://github.com/roymuke/FF16SubsOrganizer/issues) in case you encountered any bug.
