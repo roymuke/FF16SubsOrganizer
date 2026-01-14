@@ -1,9 +1,8 @@
-import os, argparse, json, subprocess
+import os, argparse
 import xml.etree.ElementTree as ET
-from html import unescape
-from collections import defaultdict
 
 def get_ids():
+    import json
     with open("IDs.json","r",encoding="utf-8") as f:
         jsonIds = json.load(f)
     return jsonIds["characters"], jsonIds["subtitleID"]
@@ -87,7 +86,7 @@ def collect_table(lang_root, jap_root):
 def export_xlsx(table_rows, output, verbose):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
-    from collections import Counter
+    from collections import Counter, defaultdict
     rows_by_subdir = defaultdict(list); stats = list(); batch_filename = list()
     print("> Generating file...")
     try:
@@ -149,6 +148,7 @@ def export_xlsx(table_rows, output, verbose):
 def edit_xml(xlsx_path, col_reference, lang_root, verbose):
     from openpyxl import load_workbook
     from openpyxl.utils import column_index_from_string
+    from html import unescape
     try:
         wb = load_workbook(xlsx_path)
         all_sheets = {}
@@ -213,6 +213,8 @@ def edit_xml(xlsx_path, col_reference, lang_root, verbose):
 def convert_batch(ff16converter, lang_path, valid_ext, verbose):
     from pathlib import Path
     from time import perf_counter
+    from collections import defaultdict
+    import subprocess
     lang_path = Path(lang_path)
     if not lang_path.exists():
         print(f" \033[91m[ERROR]\033[00m Folder {lang_path} does not exist")
@@ -223,8 +225,6 @@ def convert_batch(ff16converter, lang_path, valid_ext, verbose):
     if not valid_ext:
         print(f" \033[91m[ERROR]\033[00m Extension not set.")
         return
-    if valid_ext == ".pzd": ext_convert = ".xml"
-    else: ext_convert = ".pzd"
     valid_ext = [valid_ext]
     print(f"> Converting files in: \033[48;5;235m{lang_path}\033[00m\n> Processing. This may take a while...")
     files_to_convert = [
@@ -232,32 +232,37 @@ def convert_batch(ff16converter, lang_path, valid_ext, verbose):
         if file.suffix.lower() in valid_ext and file.is_file()
     ]
     if verbose: print(f" \033[38;5;75m[INFO]\033[00m {len(files_to_convert)} files to convert")
-    start_time = perf_counter()
+    folder_group = defaultdict(list); start_time = perf_counter()
     for file in files_to_convert:
+        if valid_ext == [".pzd"]:
+            has_xml = Path(str(file) + ".xml")
+            if has_xml.exists():
+                if verbose: print(f" \033[90m[SKIP] {has_xml.name} already exists, skipping.\033[00m")
+                continue
+            folder_group[str(file.parent.name)].append(file)
+        else:
+            has_pzd = Path(str(file) + "RB.pzd")
+            if has_pzd.exists():
+                if verbose: print(f" \033[90m[SKIP] {has_pzd.name} already exists, skipping.\033[00m")
+                continue
+            folder_group[str(file.parent.name)].append(file)
+    for folder, files in folder_group.items():
         try:
-            if valid_ext == [".pzd"]:
-                has_xml = Path(str(file) + ".xml")
-                if has_xml.exists():
-                    if verbose: print(f" \033[90m[SKIP] {has_xml.name} already exists, skipping.\033[00m")
-                    continue
+            if verbose: print(f" \033[38;5;75m[INFO]\033[00m Converting files on: \033[38;5;81m{folder}\033[00m")
+            if folder == "defaultq" or folder == "simpleq":
+                helper = []
+                for i in range(0, len(files), 400):
+                    helper.append(files[i:i + 400])
+                for chunk in helper:
+                    subprocess.run([ff16converter] + [str(file) for file in chunk], capture_output=True, text=True)
             else:
-                has_pzd = Path(str(file) + "RB.pzd")
-                if has_pzd.exists():
-                    if verbose: print(f" \033[90m[SKIP] {has_pzd.name} already exists, skipping.\033[00m")
-                    continue
-            if verbose: print(f" \033[38;5;75m[INFO]\033[00m Converting: \033[38;5;81m{file.name}\033[00m to \033[38;5;211m{ext_convert}\033[00m")
-            result = subprocess.run([ff16converter, str(file)], capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f" \033[38;5;214m[WARNING]\033[00m Conversion failed for {file.name}")
-                print(f" \033[91m[ERROR]\033[00m {result.stderr}")
-        except FileNotFoundError:
-            print(f" \033[91m[ERROR]\033[00m Converter not found at {ff16converter}")
-            break
+                subprocess.run([ff16converter] + [str(file) for file in files], capture_output=True, text=True)
         except Exception as e:
-            print(f" \033[91m[ERROR]\033[00m Error converting {file}: {e}")
+            print(f" \033[91m[ERROR]\033[00m Error converting: {e}")
     time_lapsed = perf_counter() - start_time
     print(f" \033[38;5;76m[DONE]\033[00m Files converted in {int(time_lapsed // 3600):02d}:{int((time_lapsed % 3600) // 60):02d}:{int(time_lapsed % 60):02d}")
 
+# Command: move-batch
 def move_converted(this_directory, to_directory, extension, verbose):
     from pathlib import Path
     import shutil
@@ -305,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="""\033[38;5;81m
  +----------------------------------------------+
- | FFXVI Subtitle Organizer v1.3                |
+ | FFXVI Subtitle Organizer v1.4                |
  | by Roysu                                     |
  +----------------------------------------------+
  | https://github.com/roymuke/FF16SubsOrganizer |
@@ -313,14 +318,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  \033[90m# Export to XLSX for editing\033[00m
-  > \033[38;5;149mFF16SubsOrganizer.py\033[00m to-xlsx \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en.XML"\033[00m \033[38;5;149m-j\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.ja\\nxd\\txt"\033[00m [\033[38;5;149m-o\033[00m \033[38;5;222m"C:\custom\path\\to\\file.xlsx"\033[00m]
+  \033[90m# Export subtitles to XLSX for editing\033[00m
+  > \033[38;5;149mFF16SubsOrganizer.py\033[00m to-xlsx \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.en.XML"\033[00m \033[38;5;149m-j\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.ja\\nxd\\txt"\033[00m \033[38;5;149m-o\033[00m \033[38;5;222m"C:\custom\path\\to\\file.xlsx"\033[00m
 
   \033[90m# Apply translations from XLSX back to XML\033[00m
-  > \033[38;5;149mFF16SubsOrganizer.py\033[00m edit-xml \033[38;5;149m-f\033[00m \033[38;5;222m"file.xlsx"\033[00m \033[38;5;149m-col\033[00m I2 \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en"\033[00m
+  > \033[38;5;149mFF16SubsOrganizer.py\033[00m edit-xml \033[38;5;149m-f\033[00m \033[38;5;222m"C:\path\\to\\file.xlsx"\033[00m \033[38;5;149m-col\033[00m I2 \033[38;5;149m-l\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.en.XML"\033[00m
 
   \033[90m# Convert in batch PZD->XML or XML->PZD\033[00m
-  > \033[38;5;149mFF16SubsOrganizer.py\033[00m convert-batch \033[38;5;149m-c\033[00m \033[38;5;222m"C:\path\\to\\FF16Converter.exe"\033[00m \033[38;5;149m-f\033[00m \033[38;5;222m"C:\path\\to\\folder\\0001.en\\nxd\\text"\033[00m \033[38;5;149m--xml\033[00m [\033[38;5;149m-m\033[00m \033[38;5;222m"C:\path\\to\moving\\folder"\033[00m]""")
+  > \033[38;5;149mFF16SubsOrganizer.py\033[00m convert-batch \033[38;5;149m-c\033[00m \033[38;5;222m"C:\path\\to\\FF16Converter.exe"\033[00m \033[38;5;149m-f\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.en\\nxd\\text"\033[00m \033[38;5;149m--pzd\033[00m \033[38;5;149m-m\033[00m \033[38;5;222m"C:\path\\to\moving\\folder"\033[00m
+
+  \033[90m# Move files to another destination by extension\033[00m
+  > \033[38;5;149mFF16SubsOrganizer.py\033[00m move-batch \033[38;5;149m-f\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.en.XML"\033[00m \033[38;5;149m--pzd\033[00m \033[38;5;149m-m\033[00m \033[38;5;222m"C:\path\\to\\folder\\0007.en.PZD"\033[00m""")
     subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
     # to-xlsx command
     xlsx_parser = subparsers.add_parser("to-xlsx", help="Export subtitles to XLSX file.")
@@ -331,16 +339,23 @@ examples:
     # edit-xml command
     edit_parser = subparsers.add_parser("edit-xml", help="Gets translations from XLSX back to XML files.")
     edit_parser.add_argument("-f", "--file", required=True, help="XLSX file path")
-    edit_parser.add_argument("-col", required=True, help="Column with new translations (e.g., I2)")
-    edit_parser.add_argument("-l", "--language", required=True, help="Path to language to translate folder (e.g. C:\...\0001.en\nxd\text)")
+    edit_parser.add_argument("-col", required=True, help="Column with new translations (e.g. I2)")
+    edit_parser.add_argument("-l", "--language", required=True, help="Path to language to translate folder (e.g. C:\...\0007.en\nxd\text)")
     edit_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed output messages")
     # convert-batch command
-    move_parser = subparsers.add_parser("convert-batch", help="Convert entire XML files back to PZD.")
-    move_parser.add_argument("-c", "--converter", required=True, help="Path to FF16Converter.exe")
-    move_parser.add_argument("-f", "--folder", required=True, help="Path to language folder")
-    move_parser.add_argument("--xml", action="store_const", const=".xml", dest="extension", help="Extension to convert, i.e, XML to PZD.")
-    move_parser.add_argument("--pzd", action="store_const", const=".pzd", dest="extension", help="Extension to convert, i.e, PZD to XML.")
-    move_parser.add_argument("-m", "--moveto", help="Path to converted pzd files folder destination.")
+    batch_parser = subparsers.add_parser("convert-batch", help="Convert files to another format, pzd->xml OR xml->pzd.")
+    batch_parser.add_argument("-c", "--converter", required=True, help="Path to FF16Converter.exe")
+    batch_parser.add_argument("-f", "--folder", required=True, help="Path to language folder")
+    batch_parser.add_argument("--pzd", action="store_const", const=".pzd", dest="extension", help="Extension to convert (pzd -> xml).")
+    batch_parser.add_argument("--xml", action="store_const", const=".xml", dest="extension", help="Extension to convert (xml -> pzd).")
+    batch_parser.add_argument("-m", "--moveto", help="Path to converted files folder destination.")
+    batch_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed output messages")
+    # move-batch command
+    move_parser = subparsers.add_parser("move-batch", help="Move files to another destination.")
+    move_parser.add_argument("-f", "--folder", required=True, help="Path to parent folder.")
+    move_parser.add_argument("--pzd", action="store_const", const=".pzd", dest="extension", help="Move PZD files.")
+    move_parser.add_argument("--xml", action="store_const", const=".xml", dest="extension", help="Move XML files.")
+    move_parser.add_argument("-m", "--moveto", required=True, help="Path to folder destination.")
     move_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed output messages")
 
     args = parser.parse_args()
@@ -356,6 +371,8 @@ examples:
         convert_batch(args.converter,args.folder,args.extension, args.verbose)
         if args.moveto and args.extension:
             move_converted(args.folder, args.moveto, args.extension, args.verbose)
+    elif args.command == "move-batch":
+        move_converted(args.folder, args.moveto, args.extension, args.verbose)
 
 if __name__ == "__main__":
     main()
